@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # CS-PROUD-recon_dce
 Reconstruction of PROUD DCE datasets, originally optimized for pancreatic DCE.
 Options for reconstructions include:
