@@ -6,6 +6,11 @@ SG.Parameter.Parameter2Read.typ = 1;
 SG.Parameter.Labels.Index.typ(SG.Parameter.Labels.Index.typ==2)=1; % include rejected data
 SG.Parameter.Parameter2Read.Update;
 SG.ReadData;
+SG.RandomPhaseCorrection;
+SG.RemoveOversampling;
+SG.PDACorrection;
+SG.DcOffsetCorrection;
+SG.MeasPhaseCorrection;
 % SG.K2IM; % Fourier transform in frequency encoding direction 
 
 noisemeas = sum(SG.Parameter.Labels.Index.typ == 5);
@@ -17,7 +22,7 @@ SG.Data = abs(SG.Data);
 
 %% Define SG points to be used
 % channels
-chan=SG.Parameter.Labels.CoilNrs(:,1);
+chan = (unique(SG.Parameter.Labels.Index.chan(SG.Parameter.Labels.Index.typ==1)));
 % flow encoding directions
 extr1=SG.Parameter.Parameter2Read.extr1;
 tmp =SG.Parameter.Labels.Index.ky(data_in_use_index)==0 & SG.Parameter.Labels.Index.kz(data_in_use_index) == 0 & SG.Parameter.Labels.Index.chan(data_in_use_index) == chan(1) & SG.Parameter.Labels.Index.extr1(data_in_use_index)== extr1(1);

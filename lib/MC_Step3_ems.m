@@ -10,14 +10,11 @@ plot(Peak_Index,Res_Signal(Peak_Index),'ro');
 
 if length(Peak_Index) > 1
     
-    % find peak diff outliers, the injection phase will be between 100 and 350
+    % find peak diff outliers, the injection phase will be between 200 and 350
     pkDiffsOutliers = Peak_Index(isoutlier(abs(diff(Res_Signal(Peak_Index)))));
-    if length(pkDiffsOutliers) == 1 % add the next peak as well
-        pkDiffsOutliers(2) = Peak_Index(find(Peak_Index>pkDiffsOutliers,1,'first'));
-    end
-    pkDiffsOutliers(pkDiffsOutliers<100 | pkDiffsOutliers > 350) = [];
+    pkDiffsOutliers(pkDiffsOutliers<200 | pkDiffsOutliers > 350) = [];
     
-    preRes = [zeros(10,1); Res_Signal(10:pkDiffsOutliers(1)-1)];  % again skip first 10 points
+    preRes = Res_Signal(1:pkDiffsOutliers(1));
     preRes = preRes - mean(Res_Signal(Peak_Index(1):pkDiffsOutliers(1)));
     
     postRes = Res_Signal(pkDiffsOutliers(end):end);

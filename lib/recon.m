@@ -339,7 +339,6 @@ try
                         tmp = bart('fft -u 7',bart('fmac -s 16',tmp,sensemap)); % first fmac than fft
                     end
                     tmp = ipermute(tmp, dims_change_mrecon2bart);
-%                     tmp = bsxfun(@times,create_checkerboard([1,size(tmp,2),size(tmp,3)]),tmp); % redo checkerboard like in mrecon.Data
                     tmp_out(i_FE,:,:,:,:,:,:,:,:,:,:,:) = tmp;
                 end
             catch ME
