@@ -140,20 +140,23 @@ mrecon.Parameter.Parameter2Read.typ = 1;
 mrecon.Parameter.Parameter2Read.Update;
 mrecon.ReadData;
 
-% if ~isSerialON
-%     logger.note(sprintf('Removing orthogonal cross lines from raw data'));
-%     ind2Remove = unique(sort(cat(1,typ2,typ4')));
-%     mrecon.Data(:,ind2Remove) = [];
-% end
-
 % perform MRecon reconstruction steps
+mrecon.NonLinearityCorrection;
 mrecon.RandomPhaseCorrection;
 mrecon.RemoveOversampling;
 mrecon.PDACorrection;
 mrecon.DcOffsetCorrection;
 mrecon.MeasPhaseCorrection;
 mrecon.SortData;
+mrecon.PartialFourier;
 mrecon.GridData;
+
+if checkRPflag(RP,'bart_pics')
+    % Philips data 1/-1 modulation along phase/slice dimensions, can be removed
+    % using bart fftmod
+    cmd = 'fftmod 6';
+    [L, mrecon.Data] = bart_evalc(cmd, mrecon.Data);
+end
 
 %% Gaussian weighted view sharing. 
 
@@ -199,30 +202,7 @@ end
 if ~checkRPflag(RP,'reco_skip_PW')
     logger.note(sprintf('Pre-whitening data'));
     try
-        MRn=MRecon(fullfile(RP.data_dir, RP.data_target));
-        MRn.Parameter.Recon.ArrayCompression = mrecon.Parameter.Recon.ArrayCompression;
-        MRn.Parameter.Recon.ACNrVirtualChannels = mrecon.Parameter.Recon.ACNrVirtualChannels;
-        MRn.Parameter.Parameter2Read.typ=5;
-        MRn.ReadData;
-        eta=MRn.Data;
-
-        Ncoils=size(mrecon.Data,4);
-        Nsamples=numel(mrecon.Data)/Ncoils;
-
-        psi = (1/(Nsamples-1))*(eta' * eta);
-        L = chol(psi,'lower');
-        L_inv = (inv(L));
-        L_inv=diag(diag(L_inv)); %using only diagonal values
-
-        mrecon.Data=permute(mrecon.Data, [1:3 5:length(size(mrecon.Data)) 4]);
-        sizeMRDATA = size(mrecon.Data);
-        mrecon.Data=reshape(mrecon.Data,[Nsamples,Ncoils]);
-        mrecon.Data=mrecon.Data.';
-        mrecon.Data = conj(L_inv) * mrecon.Data;
-        mrecon.Data=mrecon.Data.';
-        mrecon.Data=reshape(mrecon.Data,sizeMRDATA);
-        mrecon.Data=ipermute(mrecon.Data, [1:3 5:length(size(mrecon.Data)) 4]);
-        clearvars sizeMRDATA L_inv L psi MRn eta
+        mrecon.Data = single(preWhiten(fullfile(RP.data_dir, RP.data_target), mrecon.Data));
     catch ME
             logger.note(sprintf('WARNING: Error occured in recon.m -- pre-whitening data\n\n%s',ME.message'));
     end
@@ -297,12 +277,25 @@ try
             sensemap_all = sensemap_all./max(sensemap_all(:)); % LMG DEBUG (normalize for better image quality)
         end
         clear S
+    elseif checkRPflag(RP,'bart_sensemap3D')
+        logger.note(sprintf('BART 3D sensemap calculation'));
+        % calculate sensemap using bart in 3D, always uses 'ecalib'
+        cmdsens = 'ecalib -1'; % only the first step
+        tmp = mrecon.Data(:,:,:,:,:);
+        [L, calone] = bart_evalc(cmdsens, eps+sum(tmp,5)./sum(tmp~=0+eps,5) );
+        clear tmp;
+        cmdsens2 = sprintf('ecaltwo -S -m2 %i %i %i',size(mrecon.Data,1), size(mrecon.Data,2), size(mrecon.Data,3));
+        [L, sensemap_all] = bart_evalc(cmdsens2, calone);
+        sensemap_all = sensemap_all(:,:,:,:,1); % only keep first map
+        clear calone;
+        RP.bart_sensemap = 0;   % to avoid conflicting values
     end
 catch ME
     logger.note(sprintf('WARNING: Error occured in recon.m -- load MRsense object!\n\n%s',ME.message'));  
 end   
 logger.note(sprintf('K2IM'));
 mrecon.K2IM;
+mrecon.EPIPhaseCorrection;
 % perform CS reconstruction 
 try
     if ( checkRPflag(RP,'bart_sensemap') || checkRPflag(RP,'bart_pics') )      
@@ -327,7 +320,7 @@ try
         % create parpool
         delete(gcp('nocreate'))
         if ~isfield(RP,'bart_parpool'); RP.bart_parpool = 8; end
-        if RP.bart_parpool > 0
+        if RP.bart_parpool > 1
             logger.note(sprintf('Create parallel pool (%d workers)',RP.bart_parpool));
             parpool(RP.bart_parpool);
         else
@@ -342,9 +335,6 @@ try
             T = load(sprintf(fullfile(tmpsavename,'/slice_%03d.mat'),i_FE));
             tmp = T.tmp;
             
-            % undo checkerboard in mrecon.Data
-            tmp = bsxfun(@times,create_checkerboard([1,size(tmp,2),size(tmp,3)]),tmp);  
-        
             try % get sensitivity map
                 if checkRPflag(RP,'bart_sensemap')
                     % BART estimate sensitivity
@@ -353,6 +343,13 @@ try
                     else
                         cmdsens = 'ecalib -m1';
                     end
+                     % extra check for caldir to have good calibration region
+                     % size
+                     if strncmp('caldir',cmdsens,6)
+                         if strncmp('caldir',cmdsens,6)/size(tmp,2) < 0.2
+                             cmdsens = ['caldir ' num2str(round(size(tmp,2)*0.2))];
+                         end
+                     end
                     [L,sensemap] = bart_evalc(cmdsens, sum(sum(tmp(:,:,:,:,1,:,1,1,1,:),6),10)./sum(sum(tmp(:,:,:,:,1,:,1,1,1,:)~=0+eps,6),10) );
                     sensemap_all(i_FE,:,:,:,:) = sensemap; % ecalib -m2
                     if i_FE ==1 || i_FE == floor(n_FE/2); logger.note(L); end
@@ -642,56 +639,8 @@ if checkRPflag(RP,'exp_mat')
         logger.note(sprintf('WARNING: Error occured in recon.m -- save .mat -- data could not be saved!\n%s',ME.message'));
     end
 end
-end
 
-% %%transformations Eric
-% % if mask == 2, get a 3D mask over the heart
-% if RP.respiratoryRegistrationMask == 2
-%     %         temp = squeeze(mean(recon(:,:,round(size(recon,3)/2),:),4));
-%     %             figure;imagesc(temp); colormap gray, axis equal
-%     %             h = imrect(gca);
-%     %             maskSz = round(h.getPosition);
-%     %             mask = zeros(size(temp));
-%     %             mask(maskSz(2):(maskSz(2)+maskSz(4)), maskSz(1):(maskSz(1)+maskSz(3))) = 1;
-%     if isfile([RP.data_dir '/mask.mat'])
-%         load([RP.data_dir '/mask.mat']);
-%         [x,y] = ind2sub(size(mask),find(mask));
-%         recon2 = recon(min(x):max(x),min(y):max(y),:,:);
-%     else    % ask the user to draw a mask
-%         temp = squeeze(mean(recon(:,:,round(size(recon,3)/2),:),4));
-%         figure;imagesc(temp); colormap gray, axis equal
-%         h = imrect(gca);
-%         pause;
-%         maskSz = round(h.getPosition);
-%         mask = zeros(size(temp));
-%         mask(maskSz(2):(maskSz(2)+maskSz(4)), maskSz(1):(maskSz(1)+maskSz(3))) = 1;
-%         save([RP.data_dir '/mask.mat'],'mask')
-%         [x,y] = ind2sub(size(mask),find(mask));        
-%         recon2 = recon(min(x):max(x),min(y):max(y),:,:);
-%     end
-% end
-% 
-% clear transforms registered
-% for phase = 2:size(recon2,4)
-%     fixed = recon2(:,:,:,1);
-%     moving = recon2(:,:,:,phase);
-%     [movingreg] = registerImages_chest(moving,fixed);
-%     transforms(:,:,phase-1) = movingreg.Transformation.T;
-%     registered(:,:,:,phase-1) = movingreg.RegisteredImage;
-% end
-% 
-% save([savename '/transforms.mat'],'transforms');
-% save([savename '/respRecon.mat'],'recon','recon2','registered','extr2');
-% transforms = round(transforms,2);
-% tra_table = table((1:size(transforms,3))',squeeze(transforms(4,1,:)),squeeze(transforms(4,2,:))...
-%     ,squeeze(transforms(4,3,:)),'VariableNames',{'phase','AP','FH','RL'});
-% tra_table
-% writetable(tra_table,[savename '/translations.xlsx']);
-% 
-% addpath(genpath('/home/emschrauben/scratch/code/matlab/toolboxes/'))
-% View4D(cat(2,repmat(recon2(:,:,:,1),[1 1 1 nPhases-1]),recon2(:,:,:,2:end),registered))
-% 
-% end
+end
 
 function B = isnat( x )
 %ISNAT Summary of this function goes here
@@ -708,25 +657,6 @@ out = isfield(RP,field);
     if out
         eval(sprintf('out = (RP.%s == 1);',field));     
     end
-end
-
-function ch=create_checkerboard(s)
-%s: size of checkerboard
-% starts with -1 on top left corner 
-if length(s)==2
-    ch=(((-1).^[1:s(1)]).*1i).'*(((-1).^[1:s(2)]).*1i);
-elseif length(s)==3
-    ch=(((-1).^[1:s(1)]).*1i).'*(((-1).^[1:s(2)]).*1i);
-    ch=repmat(ch,[1 1 s(3)]);
-    ch1d=(((-1).^[1:s(3)]).*1i).*(ones(1,s(3)).*-1i);
-    ch1d=permute(ch1d,[1 3 2]);
-    ch=bsxfun(@times,ch,ch1d);
-elseif length(s)==1
-    ch=(((-1).^[1:s(1)]).*1i).*(ones(1,s(1)).*-1i);
-else
-    error('unsupported size')
-end
-
 end
 
 function dims_order = dims_change_mrecon2bart()
@@ -760,7 +690,7 @@ function data = data_rescale(data)
 % scale data to 2^12 = 4096
 
 datamax = ceil(max(abs(data(:))));
-data = data ./ datamax .* 2^12;
+data = data ./ datamax .* (2^12 -1);
 end
 
 function data = data_mask(data,NoiseClipValue)

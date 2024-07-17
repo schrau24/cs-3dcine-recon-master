@@ -3,16 +3,18 @@
 
 
 %% BART SETTINGS
-addpath(fullfile('/opt/amc/bart-0.4.03', 'matlab'));
-setenv('TOOLBOX_PATH', '/opt/amc/bart-0.4.03/bin');
-% addpath(fullfile('/opt/amc/bart-0.7.00-gpu', 'matlab'));
-% setenv('TOOLBOX_PATH', '/opt/amc/bart-0.7.00-gpu/bin');
+% addpath(fullfile('/opt/amc/bart-0.4.03', 'matlab'));
+% setenv('TOOLBOX_PATH', '/opt/amc/bart-0.4.03/bin');
+addpath(fullfile('/opt/amc/bart-0.5.00-gpu', 'matlab'));
+setenv('TOOLBOX_PATH', '/opt/amc/bart-0.5.00-gpu/bin');
 setenv('OMP_NUM_THREADS','4');
 
 %% MRECON SETTINGS
 % mreconpath = '/opt/amc/matlab/toolbox/MRecon-4.3.1-mod/'; % default (latest)
-mreconpath = '/opt/amc/matlab/toolbox/MRecon-5.3.4/'; % default (latest)
-% mreconpath = '/scratch/lmgottwald/MRecon-3.0.557_debug'; 
+mreconpath = '/opt/amc/matlab/toolbox/MRecon-5.4.2/';		% latest version, 
+% mreconpath = '/opt/amc/matlab/toolbox/MRecon-5.1.0/';       	% 202309 to 20230426, for .sin file reading (fetal)
+% mreconpath = '/opt/amc/matlab/toolbox/MRecon'; % default (latest)
+
 % scanner release / MRecon compatability
 % ----scanner--------|--MRecon (from)------(up to)----
 % 3T R5.1.8 SWID31 :    ?               ?
