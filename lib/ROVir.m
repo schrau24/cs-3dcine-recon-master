@@ -60,6 +60,7 @@ img_orig = MRtemp.Data;
 MRtemp.CombineCoils;
 img_orig_cc = MRtemp.Data/max(MRtemp.Data(:));
 clear MRtemp;
+
 %% masking
 [x, y, z] = size(img_orig,1:3);
 

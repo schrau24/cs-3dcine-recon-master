@@ -147,6 +147,18 @@ mrecon.RemoveOversampling;
 mrecon.PDACorrection;
 mrecon.DcOffsetCorrection;
 mrecon.MeasPhaseCorrection;
+
+% tmp replace data with fnav corrected data
+% load([RP.data_dir 'kspace_corrected.mat']) 
+load([RP.data_dir 'kspace_aorta_minus6.mat']) 
+ksptmp = single(zeros(size(mrecon.Data)));
+for ch = 1:size(kspace_corrected,3)
+    ksptmp(:,ch:size(kspace_corrected,3):end) = single(kspace_corrected(:,:,ch));
+end
+mrecon.Data = ksptmp;
+clear ksptmp kspace_corrected;
+
+
 mrecon.SortData;
 mrecon.PartialFourier;
 mrecon.GridData;
@@ -220,6 +232,15 @@ end
 
 logger.note(sprintf('k-space ZeroFill'));
 mrecon.ZeroFill;
+
+% calculate required oversampling, fix if ZeroFill was performed incorrectly
+[nx,~,~] = size(mrecon.Data);
+if nx > mrecon.Parameter.Encoding.XRes
+	centralRegion = (mrecon.Parameter.Encoding.XRes)/2;
+	ksp = mrecon.Data;
+	ksp = ksp((nx/2 - centralRegion + 1):(nx/2 + centralRegion),:,:,:,:,:,:,:,:,:,:);
+	mrecon.Data = ksp; clear ksp;
+end
 
 % coil compression / combination
 if ( checkRPflag(RP,'bart_skip_fmac_SENSEUnfold') && checkRPflag(RP,'bart_cc') )
@@ -313,10 +334,15 @@ try
         else
             tmp_out = mrecon.Data(:,:,:,1,:,:,:,:,:,:,:,:);
         end
-        if ~exist('sensemap_all','var'); sensemap_all = repmat(mrecon.Data(:,:,:,:,1,1,1,1,1,1,1,1), 1,1,1,1,2); end
+        if ~exist('sensemap_all','var')
+            nMaps = 2;
+            if contains(RP.bart_sensemap_cmd,'ecalib') && ~isempty(strfind(RP.bart_sensemap_cmd,'-m'))
+                nMaps = str2double(RP.bart_sensemap_cmd(strfind(RP.bart_sensemap_cmd,'-m')+2));
+            end
+            sensemap_all = repmat(mrecon.Data(:,:,:,:,1,1,1,1,1,1,1,1), 1,1,1,1,nMaps);
+        end
+        mrecon.Data = [];
         
-            mrecon.Data = [];
-                
         % create parpool
         delete(gcp('nocreate'))
         if ~isfield(RP,'bart_parpool'); RP.bart_parpool = 8; end
@@ -372,7 +398,9 @@ try
                     tmp = permute(tmp, dims_change_mrecon2bart);
                     % [BART MRI DIMS: READ_DIM,	PHS1_DIM,	PHS2_DIM,	COIL_DIM,	MAPS_DIM,	TE_DIM,	COEFF_DIM,	COEFF2_DIM,	ITER_DIM,	CSHIFT_DIM,	TIME_DIM,	TIME2_DIM,	LEVEL_DIM,	SLICE_DIM,	AVG_DIM
                     [L,tmp] = bart_evalc(cmdpics,tmp,sensemap);
-                    [~,tmp] = bart_evalc('rss 16', tmp);
+                    if nMaps > 1
+                        [~,tmp] = bart_evalc('rss 16', tmp);
+                    end
                                        
                     if i_FE ==1 || i_FE == floor(n_FE/2); logger.note(L); end
                     if ~checkRPflag(RP,'bart_skip_fmac_SENSEUnfold')
@@ -443,8 +471,8 @@ if ~checkRPflag(RP,'bart_pics'); mrecon.PartialFourier; end
 mrecon.CombineCoils;
     %mrecon.Average;
 mrecon.GeometryCorrection;
-mrecon.RemoveOversampling;
-mrecon.ZeroFill;
+%mrecon.RemoveOversampling;
+%mrecon.ZeroFill;
     %mrecon.FlowPhaseCorrection;
 mrecon.RotateImage;
 

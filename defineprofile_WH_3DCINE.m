@@ -18,7 +18,7 @@ profile = {};
 % senseref are automatically determined
 homeDir = fileparts(mfilename('fullpath'));
 % define folders and files
-baseDir = '/home/emschrauben/lood_storage/divi/Projects/3d_cine/';
+baseDir = '/scratch/rnga/emschrauben/3D_CINE_WH/';
 cd(baseDir)
 [filename, pathname] = uigetfile('*.raw','Select raw data file');
 cd(homeDir)
@@ -114,9 +114,9 @@ profile.Cardiac_RetroPhases             = str2double(answer{2}); % 30; % for rel
 profile.Cardiac_HeartPhaseInterval      = 40; % for absolute binning ?
 
 %% % RECON PARAMETER
-profile.Recon_CoilCombination               = 'pc';
-profile.Recon_ImageSpaceZeroFill            = 'Yes';
-profile.Recon_kSpaceZeroFill                = 'Yes';
+profile.Recon_CoilCombination               = 'sos';
+profile.Recon_ImageSpaceZeroFill            = 'No';
+profile.Recon_kSpaceZeroFill                = 'No';
 % profile.Recon_SENSE                         = 'Yes';
 % profile.Recon_DcOffsetCorrection            = 'Yes';
 % profile.Recon_PDACorrection                 = 'Yes';

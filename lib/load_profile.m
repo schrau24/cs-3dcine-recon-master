@@ -8,11 +8,6 @@ if strcmp(PATH, '')
     filename = fullfile(fileparts(fileparts(mfilename('fullpath'))),'profileQueue',filename); 
 end
 
-% make script unaffected by USER
-C=strsplit(filename,'/');
-C{3} = getenv('USER');
-filename = strjoin(C,'/');
-
 if strcmp(ext, '.mat')
 	profile = load(filename);
 elseif any(strcmp(ext, {'.txt' '.dat' '.csv'})),
